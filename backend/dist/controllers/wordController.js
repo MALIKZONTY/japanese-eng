@@ -1,0 +1,272 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.removeFavorite = exports.addFavorite = exports.deleteWord = exports.updateWord = exports.createWord = exports.getWordById = exports.getWords = void 0;
+const word_1 = require("../models/word");
+const group_1 = require("../models/group");
+const mongoose_1 = require("mongoose");
+/**
+ * GET /api/words
+ * Returns a list of words with pagination, filtering, and search.
+ */
+const getWords = async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 1;
+        // Parse limit, default to 12 if not specified. If explicitly set to 0 or negative, fetch all.
+        const limitQuery = req.query.limit !== undefined ? parseInt(req.query.limit) : 12;
+        const limit = isNaN(limitQuery) ? 12 : limitQuery;
+        const skip = (page - 1) * limit;
+        const search = req.query.search;
+        const groupId = req.query.groupId;
+        const isFavorite = req.query.isFavorite;
+        const sortBy = req.query.sortBy || 'createdAt';
+        const sortOrder = req.query.sortOrder === 'asc' ? 1 : -1;
+        const filter = {};
+        // Apply search filter if present across english, telugu, japanese, and romaji
+        if (search) {
+            const searchRegex = new RegExp(search.trim(), 'i');
+            filter.$or = [
+                { english: searchRegex },
+                { telugu: searchRegex },
+                { japanese: searchRegex },
+                { romaji: searchRegex }
+            ];
+        }
+        // Apply Group filter
+        if (groupId) {
+            filter.groupIds = new mongoose_1.Types.ObjectId(groupId);
+        }
+        // Apply Favorite filter
+        if (isFavorite === 'true') {
+            filter.isFavorite = true;
+        }
+        const total = await word_1.Word.countDocuments(filter);
+        const sortObj = {};
+        sortObj[sortBy] = sortOrder;
+        let query = word_1.Word.find(filter)
+            .populate('groupIds', 'name')
+            .sort(sortObj);
+        // Apply case-insensitive collation if sorting by text fields
+        if (['romaji', 'english', 'japanese', 'telugu'].includes(sortBy)) {
+            query = query.collation({ locale: 'en', strength: 2 });
+        }
+        if (limit > 0) {
+            query = query.skip(skip).limit(limit);
+        }
+        const words = await query;
+        res.json({
+            words,
+            page,
+            limit,
+            totalPages: limit > 0 ? Math.ceil(total / limit) : 1,
+            totalWords: total
+        });
+    }
+    catch (error) {
+        console.error('Error fetching words:', error);
+        res.status(500).json({ message: 'Server error while fetching words.' });
+    }
+};
+exports.getWords = getWords;
+/**
+ * GET /api/words/:id
+ * Fetches a single word by its ID, populating details.
+ */
+const getWordById = async (req, res) => {
+    try {
+        const { id } = req.params;
+        if (!mongoose_1.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ message: 'Invalid word ID format.' });
+        }
+        const word = await word_1.Word.findById(id)
+            .populate('groupIds', 'name description')
+            .populate('relatedWordIds', 'english japanese romaji isFavorite');
+        if (!word) {
+            return res.status(404).json({ message: 'Word not found.' });
+        }
+        res.json(word);
+    }
+    catch (error) {
+        console.error('Error fetching word details:', error);
+        res.status(500).json({ message: 'Server error while fetching word details.' });
+    }
+};
+exports.getWordById = getWordById;
+/**
+ * POST /api/words
+ * Creates a new word. Reconciles group and related word references.
+ */
+const createWord = async (req, res) => {
+    try {
+        const { english, telugu, japanese, romaji, notes, isFavorite, groupIds, relatedWordIds } = req.body;
+        if (!english || !japanese || !romaji) {
+            return res.status(400).json({ message: 'English, Japanese, and Romaji are required fields.' });
+        }
+        // Check for duplicate word in local DB (to prevent redundant saves)
+        const existing = await word_1.Word.findOne({ english: english.trim(), japanese: japanese.trim() });
+        if (existing) {
+            return res.status(409).json({ message: 'Word already exists in local dictionary.', wordId: existing._id });
+        }
+        const word = new word_1.Word({
+            english: english.trim(),
+            telugu: telugu ? telugu.trim() : '',
+            japanese: japanese.trim(),
+            romaji: romaji.trim(),
+            notes: notes || '',
+            isFavorite: !!isFavorite,
+            groupIds: Array.isArray(groupIds) ? groupIds.map(id => new mongoose_1.Types.ObjectId(id)) : [],
+            relatedWordIds: Array.isArray(relatedWordIds) ? relatedWordIds.map(id => new mongoose_1.Types.ObjectId(id)) : []
+        });
+        await word.save();
+        // Reconcile: update referenced Groups
+        if (word.groupIds.length > 0) {
+            await group_1.Group.updateMany({ _id: { $in: word.groupIds } }, { $addToSet: { wordIds: word._id } });
+        }
+        // Reconcile: update referenced Words to establish bidirectional relationship
+        if (word.relatedWordIds.length > 0) {
+            await word_1.Word.updateMany({ _id: { $in: word.relatedWordIds } }, { $addToSet: { relatedWordIds: word._id } });
+        }
+        res.status(201).json(word);
+    }
+    catch (error) {
+        console.error('Error creating word:', error);
+        res.status(500).json({ message: 'Server error while creating word.' });
+    }
+};
+exports.createWord = createWord;
+/**
+ * PUT /api/words/:id
+ * Updates an existing word. Reconciles group and related word additions and removals.
+ */
+const updateWord = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { english, telugu, japanese, romaji, notes, isFavorite, groupIds, relatedWordIds } = req.body;
+        if (!mongoose_1.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ message: 'Invalid word ID format.' });
+        }
+        const word = await word_1.Word.findById(id);
+        if (!word) {
+            return res.status(404).json({ message: 'Word not found.' });
+        }
+        const oldGroups = word.groupIds.map(g => g.toString());
+        const oldRelated = word.relatedWordIds.map(w => w.toString());
+        // Update field values
+        if (english !== undefined)
+            word.english = english.trim();
+        if (telugu !== undefined)
+            word.telugu = telugu.trim();
+        if (japanese !== undefined)
+            word.japanese = japanese.trim();
+        if (romaji !== undefined)
+            word.romaji = romaji.trim();
+        if (notes !== undefined)
+            word.notes = notes;
+        if (isFavorite !== undefined)
+            word.isFavorite = !!isFavorite;
+        if (groupIds !== undefined && Array.isArray(groupIds)) {
+            word.groupIds = groupIds.map(gid => new mongoose_1.Types.ObjectId(gid));
+        }
+        if (relatedWordIds !== undefined && Array.isArray(relatedWordIds)) {
+            word.relatedWordIds = relatedWordIds.map(rwid => new mongoose_1.Types.ObjectId(rwid));
+        }
+        await word.save();
+        const newGroups = word.groupIds.map(g => g.toString());
+        const newRelated = word.relatedWordIds.map(w => w.toString());
+        // Group reconciliation: remove word ID from old groups, add to new groups
+        const groupsToRemove = oldGroups.filter(g => !newGroups.includes(g));
+        const groupsToAdd = newGroups.filter(g => !oldGroups.includes(g));
+        if (groupsToRemove.length > 0) {
+            await group_1.Group.updateMany({ _id: { $in: groupsToRemove } }, { $pull: { wordIds: word._id } });
+        }
+        if (groupsToAdd.length > 0) {
+            await group_1.Group.updateMany({ _id: { $in: groupsToAdd } }, { $addToSet: { wordIds: word._id } });
+        }
+        // Related Words reconciliation (bidirectional): remove from old related, add to new related
+        const relatedToRemove = oldRelated.filter(w => !newRelated.includes(w));
+        const relatedToAdd = newRelated.filter(w => !oldRelated.includes(w));
+        if (relatedToRemove.length > 0) {
+            await word_1.Word.updateMany({ _id: { $in: relatedToRemove } }, { $pull: { relatedWordIds: word._id } });
+        }
+        if (relatedToAdd.length > 0) {
+            await word_1.Word.updateMany({ _id: { $in: relatedToAdd } }, { $addToSet: { relatedWordIds: word._id } });
+        }
+        res.json(word);
+    }
+    catch (error) {
+        console.error('Error updating word:', error);
+        res.status(500).json({ message: 'Server error while updating word.' });
+    }
+};
+exports.updateWord = updateWord;
+/**
+ * DELETE /api/words/:id
+ * Deletes a word. Removes references from groups and related words.
+ */
+const deleteWord = async (req, res) => {
+    try {
+        const { id } = req.params;
+        if (!mongoose_1.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ message: 'Invalid word ID format.' });
+        }
+        const word = await word_1.Word.findById(id);
+        if (!word) {
+            return res.status(404).json({ message: 'Word not found.' });
+        }
+        // Remove word ID from all groups referencing it
+        await group_1.Group.updateMany({ wordIds: word._id }, { $pull: { wordIds: word._id } });
+        // Remove word ID from all other words' relatedWordIds
+        await word_1.Word.updateMany({ relatedWordIds: word._id }, { $pull: { relatedWordIds: word._id } });
+        // Delete word
+        await word_1.Word.deleteOne({ _id: word._id });
+        res.json({ message: 'Word deleted successfully.' });
+    }
+    catch (error) {
+        console.error('Error deleting word:', error);
+        res.status(500).json({ message: 'Server error while deleting word.' });
+    }
+};
+exports.deleteWord = deleteWord;
+/**
+ * POST /api/favorites/:id
+ * Sets a word as favorite.
+ */
+const addFavorite = async (req, res) => {
+    try {
+        const { id } = req.params;
+        if (!mongoose_1.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ message: 'Invalid word ID format.' });
+        }
+        const word = await word_1.Word.findByIdAndUpdate(id, { isFavorite: true }, { new: true });
+        if (!word) {
+            return res.status(404).json({ message: 'Word not found.' });
+        }
+        res.json(word);
+    }
+    catch (error) {
+        console.error('Error adding favorite:', error);
+        res.status(500).json({ message: 'Server error while updating favorite status.' });
+    }
+};
+exports.addFavorite = addFavorite;
+/**
+ * DELETE /api/favorites/:id
+ * Removes a word from favorites.
+ */
+const removeFavorite = async (req, res) => {
+    try {
+        const { id } = req.params;
+        if (!mongoose_1.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ message: 'Invalid word ID format.' });
+        }
+        const word = await word_1.Word.findByIdAndUpdate(id, { isFavorite: false }, { new: true });
+        if (!word) {
+            return res.status(404).json({ message: 'Word not found.' });
+        }
+        res.json(word);
+    }
+    catch (error) {
+        console.error('Error removing favorite:', error);
+        res.status(500).json({ message: 'Server error while updating favorite status.' });
+    }
+};
+exports.removeFavorite = removeFavorite;

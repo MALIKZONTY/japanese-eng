@@ -1,0 +1,11 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const wordController_1 = require("../controllers/wordController");
+const router = (0, express_1.Router)();
+router.get('/', wordController_1.getWords);
+router.get('/:id', wordController_1.getWordById);
+router.post('/', wordController_1.createWord);
+router.put('/:id', wordController_1.updateWord);
+router.delete('/:id', wordController_1.deleteWord);
+exports.default = router;
