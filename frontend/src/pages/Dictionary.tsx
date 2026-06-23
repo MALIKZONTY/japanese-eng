@@ -388,56 +388,58 @@ export const Dictionary: React.FC = () => {
               {groupedWords.map((group) => (
                 <div key={group.letter} id={`section-${group.letter}`} className="relative">
                   {/* Floating alphabetical header */}
-                  <div className="sticky top-0 bg-background/95 backdrop-blur-md z-10 py-2 border-b border-border/20 text-xl font-black text-indigo-400 mb-3 flex items-center justify-between">
+                  <div className="sticky top-0 bg-background/95 backdrop-blur-md z-10 py-1.5 border-b border-border/10 text-lg font-black text-indigo-400 mb-1.5 flex items-center justify-between">
                     <div className="flex items-center">
-                      <span className="bg-indigo-950/60 border border-indigo-850 text-indigo-400 w-8 h-8 rounded-lg flex items-center justify-center mr-3 text-sm font-bold shadow-sm shadow-indigo-950/40">
+                      <span className="bg-indigo-950/60 border border-indigo-850 text-indigo-400 w-6 h-6 rounded-md flex items-center justify-center mr-2 text-xs font-bold shadow-sm">
                         {group.letter}
                       </span>
-                      <span className="text-xs text-muted-foreground font-semibold font-mono">
+                      <span className="text-[10px] text-muted-foreground font-semibold font-mono">
                         {group.words.length} {group.words.length === 1 ? 'word' : 'words'}
                       </span>
                     </div>
                   </div>
-
-                  {/* List of words */}
-                  <div className="space-y-2">
+ 
+                  {/* List of words - stacked with no vertical gaps for a real dictionary column experience */}
+                  <div className="divide-y divide-border/10">
                     {group.words.map((item, idx) => {
                       const isAI = !('_id' in item);
                       if (isAI) {
                         const aiWord = item as AIResponse;
                         const primaryTitle = dictionaryMode === 'romaji' ? aiWord.romaji : aiWord.english;
                         const secondaryTitle = dictionaryMode === 'romaji' ? '' : aiWord.romaji;
-
+ 
                         return (
                           <div 
                             key={idx}
-                            className="flex items-center justify-between p-3.5 rounded-xl border border-indigo-900/30 bg-indigo-950/5 hover:bg-indigo-950/15 hover:border-indigo-800/50 transition-all duration-150 group"
+                            className="flex items-start justify-between py-2 px-1 border-b border-indigo-900/10 hover:bg-indigo-950/10 transition-all duration-100 group"
                           >
-                            <div className="flex-1 min-w-0 pr-4">
-                              <div className="flex items-baseline gap-2.5">
-                                <span className="text-lg font-black text-indigo-400">{primaryTitle}</span>
+                            <div className="flex-1 min-w-0 pr-3">
+                              <div className="inline-flex flex-wrap items-baseline gap-x-2 text-xs sm:text-sm">
+                                <span className="font-extrabold text-indigo-400">{primaryTitle}</span>
                                 {secondaryTitle && (
-                                  <span className="text-sm font-medium text-muted-foreground">{secondaryTitle}</span>
+                                  <span className="text-[10px] sm:text-xs font-semibold text-muted-foreground/60 italic">
+                                    ({secondaryTitle})
+                                  </span>
                                 )}
-                                <span className="text-[9px] uppercase font-extrabold tracking-wider px-1.5 py-0.5 rounded bg-indigo-950 text-indigo-300 border border-indigo-900 shadow-sm shadow-indigo-950/20">
+                                <span className="text-[8px] uppercase font-extrabold px-1.5 py-0.2 rounded bg-indigo-950 text-indigo-300 border border-indigo-900 shadow-sm shrink-0">
                                   AI
                                 </span>
-                              </div>
-                              <div className="text-xs text-muted-foreground mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
-                                {dictionaryMode === 'romaji' ? (
-                                  <>
-                                    <div><span className="font-bold text-foreground/80">Eng:</span> {aiWord.english}</div>
-                                    {aiWord.telugu && (
-                                      <div><span className="font-bold text-foreground/80">Tel:</span> {aiWord.telugu}</div>
-                                    )}
-                                  </>
-                                ) : (
-                                  <>
-                                    {aiWord.telugu && (
-                                      <div><span className="font-bold text-foreground/80">Tel:</span> {aiWord.telugu}</div>
-                                    )}
-                                  </>
-                                )}
+                                <span className="text-[11px] sm:text-xs text-muted-foreground leading-relaxed">
+                                  {dictionaryMode === 'romaji' ? (
+                                    <>
+                                      <span className="font-bold text-foreground/70">def.</span> {aiWord.english}
+                                      {aiWord.telugu && (
+                                        <> <span className="text-muted-foreground/45">•</span> <span className="font-bold text-foreground/70">tel.</span> {aiWord.telugu}</>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <>
+                                      {aiWord.telugu && (
+                                        <><span className="font-bold text-foreground/70">tel.</span> {aiWord.telugu}</>
+                                      )}
+                                    </>
+                                  )}
+                                </span>
                               </div>
                             </div>
                             <div>
@@ -448,9 +450,9 @@ export const Dictionary: React.FC = () => {
                                   saveAIWordMutation.mutate(aiWord);
                                 }}
                                 isLoading={saveAIWordMutation.isPending}
-                                className="bg-indigo-600 hover:bg-indigo-700 text-xs shadow-md shadow-indigo-950/20 py-1 px-3"
+                                className="bg-indigo-600 hover:bg-indigo-700 text-[10px] h-6 shadow-md py-0.5 px-2 shrink-0"
                               >
-                                <Plus className="h-3 w-3 mr-1" />
+                                <Plus className="h-3 w-3 mr-0.5" />
                                 Save
                               </Button>
                             </div>
@@ -470,85 +472,89 @@ export const Dictionary: React.FC = () => {
                           <div 
                             key={localWord._id}
                             onClick={() => navigate(`/dictionary/${localWord._id}`)}
-                            className="flex items-center justify-between p-3.5 rounded-xl border border-border/20 bg-card/25 hover:bg-secondary/40 hover:border-indigo-500/30 transition-all duration-150 group cursor-pointer"
+                            className="flex items-start justify-between py-2 px-1 border-b border-border/5 hover:bg-secondary/35 transition-all duration-100 group cursor-pointer"
                           >
-                            {/* Term and translations */}
-                            <div className="flex-1 min-w-0 pr-4">
-                              <div className="flex items-baseline gap-2.5">
-                                <span className="text-lg font-black text-indigo-400 group-hover:text-indigo-300 transition-colors">
+                            <div className="flex-1 min-w-0 pr-3">
+                              <div className="inline-flex flex-wrap items-baseline gap-x-2 text-xs sm:text-sm">
+                                <span className="font-extrabold text-indigo-400 group-hover:text-indigo-300 transition-colors">
                                   {primaryTitle}
                                 </span>
                                 {secondaryTitle && (
-                                  <span className="text-sm font-medium text-muted-foreground">
-                                    {secondaryTitle}
+                                  <span className="text-[10px] sm:text-xs font-semibold text-muted-foreground/60 italic">
+                                    ({secondaryTitle})
                                   </span>
                                 )}
                                 {grpNames && (
-                                  <span className="text-[10px] text-indigo-400/90 font-semibold bg-indigo-950/40 border border-indigo-900/30 px-1.5 py-0.5 rounded-md truncate max-w-[120px] inline-block align-middle">
+                                  <span className="text-[8px] text-indigo-400/80 font-bold bg-indigo-950/30 border border-indigo-900/20 px-1 py-0.2 rounded shrink-0">
                                     {grpNames}
                                   </span>
                                 )}
+                                <span className="text-[11px] sm:text-xs text-muted-foreground leading-relaxed">
+                                  {dictionaryMode === 'romaji' ? (
+                                    <>
+                                      <span className="font-bold text-foreground/70">def.</span> {localWord.english}
+                                      {localWord.telugu && (
+                                        <> <span className="text-muted-foreground/45">•</span> <span className="font-bold text-foreground/70">tel.</span> {localWord.telugu}</>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <>
+                                      {localWord.telugu && (
+                                        <><span className="font-bold text-foreground/70">tel.</span> {localWord.telugu}</>
+                                      )}
+                                    </>
+                                  )}
+                                </span>
                               </div>
-                              <div className="text-xs text-muted-foreground mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
-                                {dictionaryMode === 'romaji' ? (
-                                  <>
-                                    <div><span className="font-bold text-foreground/80">Eng:</span> {localWord.english}</div>
-                                    {localWord.telugu && (
-                                      <div><span className="font-bold text-foreground/80">Tel:</span> {localWord.telugu}</div>
-                                    )}
-                                  </>
-                                ) : (
-                                  <>
-                                    {localWord.telugu && (
-                                      <div><span className="font-bold text-foreground/80">Tel:</span> {localWord.telugu}</div>
-                                    )}
-                                  </>
-                                )}
-                              </div>
+                              {localWord.notes && (
+                                <div className="text-[10px] text-muted-foreground/40 italic mt-0.5 truncate max-w-xl">
+                                  {localWord.notes}
+                                </div>
+                              )}
                             </div>
-
+ 
                             {/* Actions and Chevron */}
-                            <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+                            <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 self-center">
                               {/* Favorite Heart button */}
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   toggleFavoriteMutation.mutate({ id: localWord._id, isFav: localWord.isFavorite });
                                 }}
-                                className={`p-1.5 rounded-lg hover:bg-secondary transition-all ${
-                                  localWord.isFavorite ? 'text-rose-500 hover:text-rose-600' : 'text-muted-foreground/45 hover:text-rose-450'
+                                className={`p-1 rounded hover:bg-secondary/80 transition-all ${
+                                  localWord.isFavorite ? 'text-rose-500 hover:text-rose-600' : 'text-muted-foreground/35 hover:text-rose-450'
                                 }`}
                               >
-                                <Heart className={`h-4 w-4 ${localWord.isFavorite ? 'fill-current' : ''}`} />
+                                <Heart className={`h-3.5 w-3.5 ${localWord.isFavorite ? 'fill-current' : ''}`} />
                               </button>
-
+ 
                               {/* Edit & Delete Actions (hover on desktop, always visible on mobile) */}
-                              <div className="flex gap-1 md:opacity-0 md:group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150 opacity-100">
+                              <div className="flex gap-0.5 md:opacity-0 md:group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-100 opacity-100">
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     navigate(`/dictionary/${localWord._id}?edit=true`);
                                   }}
-                                  className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-indigo-400 transition-all"
+                                  className="p-1 rounded hover:bg-secondary/80 text-muted-foreground hover:text-indigo-400 transition-all"
                                   title="Edit Word"
                                 >
-                                  <Edit2 className="h-3.5 w-3.5" />
+                                  <Edit2 className="h-3 w-3" />
                                 </button>
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setDeleteWordId(localWord._id);
                                   }}
-                                  className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-rose-500 transition-all"
+                                  className="p-1 rounded hover:bg-secondary/80 text-muted-foreground hover:text-rose-500 transition-all"
                                   title="Delete Word"
                                 >
-                                  <Trash2 className="h-3.5 w-3.5" />
+                                  <Trash2 className="h-3 w-3" />
                                 </button>
                               </div>
-
+ 
                               {/* Details right chevron */}
-                              <div className="p-1 text-muted-foreground/30 group-hover:text-indigo-400 transition-colors">
-                                <ChevronRight className="h-5 w-5" />
+                              <div className="p-0.5 text-muted-foreground/20 group-hover:text-indigo-400 transition-colors">
+                                <ChevronRight className="h-4 w-4" />
                               </div>
                             </div>
                           </div>
