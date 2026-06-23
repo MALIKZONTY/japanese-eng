@@ -1,7 +1,14 @@
 import axios from 'axios';
 import { Word, Group, SearchHistory, AIResponse, SearchResponse } from '../types';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api';
+let base = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api';
+if (base && !base.endsWith('/api') && !base.endsWith('/api/')) {
+  if (base.endsWith('/')) {
+    base = base.slice(0, -1);
+  }
+  base = `${base}/api`;
+}
+const API_BASE_URL = base;
 
 const api = axios.create({
   baseURL: API_BASE_URL,
