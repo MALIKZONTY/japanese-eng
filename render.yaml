@@ -18,9 +18,8 @@ services:
         sync: false
 
   # Vite Frontend Static Site
-  - type: web
+  - type: static
     name: japanese-dictionary-frontend
-    env: static
     plan: free
     rootDir: frontend
     buildCommand: npm install && npm run build
