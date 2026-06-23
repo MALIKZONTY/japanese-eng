@@ -2,7 +2,7 @@ services:
   # Express Backend API Service
   - type: web
     name: japanese-dictionary-backend
-    env: node
+    runtime: node
     plan: free
     rootDir: backend
     buildCommand: npm install && npm run build
